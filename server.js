@@ -32,7 +32,7 @@ app.use(function (req, res, next) {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-mongoose.connect('mongodb+srv://akihitoq:Supavit1@cluster0-rmqvm.mongodb.net/smart-factory', option, () => {
+mongoose.connect('mongodb://127.0.0.1:27017/smart-factory', option, () => {
     console.log('connected to mongodb');
 })
 
@@ -42,18 +42,19 @@ io.on('connection', function (socket) {
             socket.emit('smartfactory', { success: true, msg: 'no_data' });
         } else {
             let count = 0;
-            let fail = 0;
-
-            for (i = 0; i < result.result.length; i++) {
-                if (result.result[i]['@testState'] == 'Passed') {
-                    count = count + 1;
-                } else {
-                    fail = fail + 1;
-                }
+            let faile_count = 0;
+            // console.log(result.result[0].appliance)
+            if (result.result[0].overallResult == 'Passed') {
+                count = count + 1;
+            }else{
+                faile_count = 1
             }
-            socket.emit('smartfactory', { success: true, data: result, pass: count, fail: fail });
+            // console.log("have")
+            socket.emit('smartfactory', { success: true, data: result, pass: count,fail: faile_count});
         }
     });
+
+    socket.emit("hello",{success: true})
 })
 
 app.use(express.static('public'));
@@ -97,8 +98,8 @@ app.get('/data', (req, res) => {
             let failtotal = 0
             for (i = 0; i < result.length; i++) {
                 count = 0
-                for (j = 0; j < result[i].result.length; j++) {
-                    if (result[i].result[j]['@testState'] == 'Passed') {
+                for (j = 0; j < result.length; j++) {
+                    if (result[i].result[0].overallResult == 'Failed') {
                         count += 1
                     } else {
                         count = 0 // if not pass then fail
@@ -157,42 +158,32 @@ app.get('/delete', (req, res) => {
 app.post('/data', (req, res) => {
     var request_data = req.body.result;
     var count = Object.keys(req.body).length
-
     if (count != 0) {
         if (request_data) {
             new Files({
-                user: request_data.session['@userName'],
-                serialNumber: request_data.session['@halSerialNumber'],
-                startAt: request_data.session['@beginTime'],
-                overall: request_data.session.appliance['@overallResult'],
-                result: request_data.session.appliance.test_set,
-                create: new Date() 
+                result: request_data,
+                create: new Date()
             }).save().then(() => {
                 Files.findOne({}, {}, { sort: { 'create': -1 } }, function (err, result) {
                     if (result.length < 1 || err) {
                         socket.emit('smartfactory', { success: true, msg: 'no_data' });
                     } else {
                         let count = 0;
-                        let fail = 0;
-            
-                        for (i = 0; i < result.result.length; i++) {
-                            if (result.result[i]['@testState'] == 'Passed') {
-                                count = count + 1;
-                            } else {
-                                fail = fail + 1;
-                            }
+                        let faile_count = 0;
+                        // console.log(result.result[0].appliance)
+                        if (result.result[0].overallResult == 'Passed') {
+                            count = count + 1;
+                        }else{
+                            faile_count = 1
                         }
-                        io.sockets.emit('smartfactory', { success: true, data: result, pass: count, fail: fail });
+                        // console.log("have")
+                        io.sockets.emit('smartfactory', { success: true, data: result, pass: count,fail: faile_count});
                     }
                 });
-                res.status(201).send({
+                res.status(200).send({
                     success: true,
                     msg: {
-                        user: request_data.session['@userName'],
-                        serialNumber: request_data.session['@halSerialNumber'],
-                        startAt: request_data.session['@beginTime'],
-                        overall: request_data.session.appliance['@overallResult'],
-                        result: request_data.session.appliance.test_set
+                        result: request_data
                     }
                 });
             }).catch(err => {
